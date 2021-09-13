@@ -8,19 +8,23 @@ import {
   USER_LIST_SUCCESS,
   USER_UPDATE
 } from "../actions/user.action";
+import {StoreUtility} from "../../store-utility";
+import {createSelector} from "@ngrx/store";
 
 export interface UserReducerState {
-  loading: boolean
-  loaded: boolean
-  error: boolean
-  users: User[]
+  loading: boolean;
+  loaded: boolean;
+  error: boolean;
+  entities: { [id: number]: User };
+  ids: number[];
 }
 
 const initialState: UserReducerState = {
-  loading: false,
   loaded: false,
+  loading: false,
   error: false,
-  users: []
+  entities: {},
+  ids: []
 }
 
 
@@ -30,23 +34,40 @@ export function UserReducer(state = initialState, action: Actions): UserReducerS
       return {...state, loading: true}
     }
     case USER_DELETE: {
-      const users = state.users.filter(data => data.id !== action.payload.id)
-      return {...state, ...{users}}
+      const id = action.payload.id;
+      const newIds = state.ids.filter(elem => elem !== id);
+      const newEntities = StoreUtility.removeKey(state.entities, id);
+      return {...state, ...{entities: newEntities, ids: newIds}}
     }
     case USER_UPDATE: {
-      const updatedUser = state.users.concat(action.payload.data)
-      return { ...state, ...{users: updatedUser}}
+      const user = action.payload.data;
+      const entity = {[user.id]: user};
+      const updatedEntities = {...state.entities, ...entity};
+      return {...state, ...{entities: updatedEntities}};
     }
     case USER_ADD: {
-      const updatedUsers = state.users.concat(action.payload.data)
-      return {...state, ...{users: updatedUsers}}
+      const user = action.payload.data;
+      const entity = {[user.id]: user};
+      const newEntities = {...state.entities, ...entity};
+      const newIds = StoreUtility.filterDuplicateIds([...state.ids, user.id]);
+      return {...state, ...{entities: newEntities, ids: newIds}};
     }
     case USER_LIST_ERROR: {
       return {...state, error: true, loading: false}
     }
     case USER_LIST_SUCCESS: {
-      const updatedUsers = state.users.concat(action.payload.data)
-      return {...state, loading: false, loaded: true, users: updatedUsers, error: false}
+      const users = action.payload.data;
+      const obj = StoreUtility.normalize(users);
+      const newEntities = {...state.entities, ...obj};
+      const ids = users.map((user: User) => user.id);
+      const newIds = StoreUtility.filterDuplicateIds([...state.ids, ...ids]);
+      return {
+        ...state, ...{
+          loaded: true,
+          loading: false, error: false,
+          entities: newEntities, ids: newIds
+        }
+      };
     }
     default: {
       return state
@@ -57,7 +78,10 @@ export function UserReducer(state = initialState, action: Actions): UserReducerS
 
 // selectors
 
-export const getLoading = (state: UserReducerState) => state.loading
-export const getLoaded = (state: UserReducerState) => state.loaded
-export const getUsers = (state: UserReducerState) => state.users
-export const getError = (state: UserReducerState) => state.error
+export const getLoading = (state: UserReducerState) => state.loading;
+export const getLoaded = (state: UserReducerState) => state.loaded;
+export const getEntities = (state: UserReducerState) => state.entities;
+export const getIds = (state: UserReducerState) => state.ids;
+export const getUsers = createSelector(getEntities,
+  (entities) => StoreUtility.unNormalized(entities));
+export const getError = (state: UserReducerState) => state.error;
